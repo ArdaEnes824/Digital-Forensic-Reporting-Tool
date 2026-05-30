@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DFIR · Evidence</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="css/site.css" rel="stylesheet" />
+</head>
+<body>
+    <div id="page-content">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="text-muted-dfir">Toplanan deliller ve hash bütünlüğü</div>
+            <button class="btn btn-cyber" data-perm="evidence:write" data-bs-toggle="modal" data-bs-target="#evModal">+ Yeni Delil</button>
+        </div>
+
+        <div class="panel">
+            <table class="table-dfir">
+                <thead>
+                    <tr>
+                        <th>Kod</th><th>Cihaz</th><th>Üretici</th><th>Model</th>
+                        <th>Seri No</th><th>SHA-256</th><th>Vaka</th><th></th>
+                    </tr>
+                </thead>
+                <tbody id="ev-body">
+                    <tr><td colspan="8" class="text-muted-dfir">Yükleniyor...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="modal fade" id="evModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="ev-form">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Yeni Delil</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label text-muted-dfir">Vaka</label>
+                        <select id="ev-case" class="form-select mb-3" required></select>
+
+                        <label class="form-label text-muted-dfir">Cihaz Türü</label>
+                        <input id="ev-device" class="form-control mb-3" required />
+
+                        <div class="row">
+                            <div class="col-6">
+                                <label class="form-label text-muted-dfir">Üretici</label>
+                                <input id="ev-manufacturer" class="form-control mb-3" />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted-dfir">Model</label>
+                                <input id="ev-model" class="form-control mb-3" />
+                            </div>
+                        </div>
+
+                        <label class="form-label text-muted-dfir">Seri No</label>
+                        <input id="ev-serial" class="form-control" />
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-cyber">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        if (!requireAuth()) throw new Error("redirecting");
+        renderShell("Evidence Management");
+        applyPermissions();
+
+        const canWrite = Api.store.can("evidence:write");
+        const canDelete = Api.store.can("evidence:delete");
+        const modal = new bootstrap.Modal(document.getElementById("evModal"));
+
+        async function load() {
+            try {
+                const items = await Api.evidence.all();
+                const body = document.getElementById("ev-body");
+                if (!items.length) {
+                    body.innerHTML = `<tr><td colspan="8" class="text-muted-dfir">Henüz delil yok.</td></tr>`;
+                    return;
+                }
+                body.innerHTML = items.map(e => `
+                    <tr>
+                        <td class="mono">${escapeHtml(e.evidenceCode)}</td>
+                        <td>${escapeHtml(e.deviceType)}</td>
+                        <td>${escapeHtml(e.manufacturer)}</td>
+                        <td>${escapeHtml(e.model)}</td>
+                        <td>${escapeHtml(e.serialNumber)}</td>
+                        <td class="mono" style="font-size:.72rem" title="${escapeHtml(e.sha256Hash)}">
+                            ${e.sha256Hash ? escapeHtml(e.sha256Hash.slice(0, 16)) + "…" : "-"}
+                        </td>
+                        <td>#${e.caseId}</td>
+                        <td class="text-end">
+                            ${canWrite ? `<button class="btn btn-ghost btn-sm" onclick='verifyEvidence(${e.id})'>Doğrula</button>` : ""}
+                            ${canDelete ? `<button class="btn btn-ghost btn-sm" onclick='removeEvidence(${e.id})'>Sil</button>` : ""}
+                        </td>
+                    </tr>`).join("");
+            } catch (err) {
+                showError(err.message || "Deliller yüklenemedi.");
+            }
+        }
+
+        async function fillCases() {
+            try {
+                const cases = await Api.cases.all();
+                document.getElementById("ev-case").innerHTML =
+                    cases.map(c => `<option value="${c.id}">${escapeHtml(c.caseNumber)} — ${escapeHtml(c.title)}</option>`).join("");
+            } catch { /* ignore */ }
+        }
+
+        window.removeEvidence = async (id) => {
+            if (!confirm("Bu delil silinsin mi?")) return;
+            try { await Api.evidence.remove(id); load(); }
+            catch (err) { showError(err.message || "Silinemedi."); }
+        };
+
+        window.verifyEvidence = (id) => {
+            const input = document.createElement("input");
+            input.type = "file";
+            input.onchange = async () => {
+                if (!input.files.length) return;
+                try {
+                    const result = await Api.evidence.verify(id, input.files[0]);
+                    alert(result?.integrityVerified ? "Hash eşleşti: bütünlük doğrulandı." : "Hash EŞLEŞMEDİ — bütünlük bozulmuş olabilir.");
+                    load();
+                } catch (err) { showError(err.message || "Doğrulama başarısız."); }
+            };
+            input.click();
+        };
+
+        document.getElementById("ev-form").addEventListener("submit", async e => {
+            e.preventDefault();
+            const dto = {
+                caseId: parseInt(document.getElementById("ev-case").value, 10),
+                deviceType: document.getElementById("ev-device").value.trim(),
+                manufacturer: document.getElementById("ev-manufacturer").value.trim(),
+                model: document.getElementById("ev-model").value.trim(),
+                serialNumber: document.getElementById("ev-serial").value.trim()
+            };
+            try {
+                await Api.evidence.create(dto);
+                modal.hide();
+                document.getElementById("ev-form").reset();
+                load();
+            } catch (err) {
+                showError(err.message || "Kaydedilemedi.");
+            }
+        });
+
+        fillCases();
+        load();
+    </script>
+</body>
+</html>

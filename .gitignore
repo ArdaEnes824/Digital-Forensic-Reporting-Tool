@@ -1,0 +1,21 @@
+# Build output
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+.vs/
+
+# ASP.NET
+**/appsettings.Development.json
+
+# Rider / JetBrains
+.idea/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

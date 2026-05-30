@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DFIR · Cases</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="css/site.css" rel="stylesheet" />
+</head>
+<body>
+    <div id="page-content">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="text-muted-dfir">Tüm vakalar</div>
+            <button class="btn btn-cyber" data-perm="cases:write" data-bs-toggle="modal" data-bs-target="#caseModal" id="new-case-btn">+ Yeni Vaka</button>
+        </div>
+
+        <div class="panel">
+            <table class="table-dfir">
+                <thead>
+                    <tr>
+                        <th>Vaka No</th><th>Başlık</th><th>Durum</th><th>Öncelik</th>
+                        <th>Aşama</th><th>Atanan</th><th>Delil</th><th></th>
+                    </tr>
+                </thead>
+                <tbody id="cases-body">
+                    <tr><td colspan="8" class="text-muted-dfir">Yükleniyor...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Create / edit modal -->
+    <div class="modal fade" id="caseModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="case-form">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="case-modal-title">Yeni Vaka</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="case-id" />
+                        <label class="form-label text-muted-dfir">Başlık</label>
+                        <input id="case-title" class="form-control mb-3" required />
+
+                        <label class="form-label text-muted-dfir">Açıklama</label>
+                        <textarea id="case-desc" class="form-control mb-3" rows="3"></textarea>
+
+                        <div class="row">
+                            <div class="col-6">
+                                <label class="form-label text-muted-dfir">Öncelik</label>
+                                <select id="case-priority" class="form-select mb-3">
+                                    <option>Low</option><option selected>Medium</option>
+                                    <option>High</option><option>Critical</option>
+                                </select>
+                            </div>
+                            <div class="col-6" id="status-wrap" style="display:none">
+                                <label class="form-label text-muted-dfir">Durum</label>
+                                <select id="case-status" class="form-select mb-3">
+                                    <option>Open</option><option>InProgress</option>
+                                    <option>OnHold</option><option>Closed</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <label class="form-label text-muted-dfir">Atanan Kişi</label>
+                        <input id="case-assigned" class="form-control" />
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-cyber">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        if (!requireAuth()) throw new Error("redirecting");
+        renderShell("Case Management");
+        applyPermissions();
+
+        const canWrite = Api.store.can("cases:write");
+        const canDelete = Api.store.can("cases:delete");
+        const modalEl = document.getElementById("caseModal");
+        const modal = new bootstrap.Modal(modalEl);
+
+        async function load() {
+            try {
+                const cases = await Api.cases.all();
+                const body = document.getElementById("cases-body");
+                if (!cases.length) {
+                    body.innerHTML = `<tr><td colspan="8" class="text-muted-dfir">Henüz vaka yok.</td></tr>`;
+                    return;
+                }
+                body.innerHTML = cases.map(c => `
+                    <tr>
+                        <td class="mono">${escapeHtml(c.caseNumber)}</td>
+                        <td>${escapeHtml(c.title)}</td>
+                        <td>${statusPill(c.status)}</td>
+                        <td>${priorityPill(c.priority)}</td>
+                        <td>${escapeHtml(c.currentStage)}</td>
+                        <td>${escapeHtml(c.assignedTo)}</td>
+                        <td>${c.evidenceCount}</td>
+                        <td class="text-end">
+                            ${canWrite ? `<button class="btn btn-ghost btn-sm" onclick='editCase(${c.id})'>Düzenle</button>` : ""}
+                            ${canDelete ? `<button class="btn btn-ghost btn-sm" onclick='removeCase(${c.id})'>Sil</button>` : ""}
+                        </td>
+                    </tr>`).join("");
+            } catch (err) {
+                showError(err.message || "Vakalar yüklenemedi.");
+            }
+        }
+
+        document.getElementById("new-case-btn")?.addEventListener("click", () => {
+            document.getElementById("case-form").reset();
+            document.getElementById("case-id").value = "";
+            document.getElementById("case-modal-title").textContent = "Yeni Vaka";
+            document.getElementById("status-wrap").style.display = "none";
+        });
+
+        window.editCase = async (id) => {
+            const c = await Api.cases.get(id);
+            document.getElementById("case-id").value = c.id;
+            document.getElementById("case-title").value = c.title;
+            document.getElementById("case-desc").value = c.description;
+            document.getElementById("case-priority").value = c.priority;
+            document.getElementById("case-status").value = c.status;
+            document.getElementById("case-assigned").value = c.assignedTo;
+            document.getElementById("case-modal-title").textContent = "Vakayı Düzenle";
+            document.getElementById("status-wrap").style.display = "block";
+            modal.show();
+        };
+
+        window.removeCase = async (id) => {
+            if (!confirm("Bu vaka silinsin mi?")) return;
+            try { await Api.cases.remove(id); load(); }
+            catch (err) { showError(err.message || "Silinemedi."); }
+        };
+
+        document.getElementById("case-form").addEventListener("submit", async e => {
+            e.preventDefault();
+            const id = document.getElementById("case-id").value;
+            const dto = {
+                title: document.getElementById("case-title").value.trim(),
+                description: document.getElementById("case-desc").value.trim(),
+                priority: document.getElementById("case-priority").value,
+                assignedTo: document.getElementById("case-assigned").value.trim()
+            };
+            try {
+                if (id) {
+                    dto.status = document.getElementById("case-status").value;
+                    await Api.cases.update(id, dto);
+                } else {
+                    await Api.cases.create(dto);
+                }
+                modal.hide();
+                load();
+            } catch (err) {
+                showError(err.message || "Kaydedilemedi.");
+            }
+        });
+
+        load();
+    </script>
+</body>
+</html>
