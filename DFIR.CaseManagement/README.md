@@ -1,7 +1,37 @@
 # DFIR Case Management System
 
-Dijital adli bilişim soruşturmalarını yönetmek için geliştirilmiş **ASP.NET Core 8** tabanlı web uygulaması.  
-Bilgisayar Mühendisliği OOP dersi kapsamında hazırlanmıştır.
+> Bilgisayar Mühendisliği — Nesne Yönelimli Programlama Dersi Dönem Projesi
+
+---
+
+## Proje Özeti
+
+**DFIR Case Management**, dijital adli bilişim (Digital Forensics & Incident Response) soruşturmalarını uçtan uca yönetmek için geliştirilmiş tam yığın bir web uygulamasıdır.
+
+Sistem; vaka açma ve takibi, dijital delil yönetimi, delil bütünlüğü doğrulama (SHA-256 / MD5), zincir muhafaza (chain of custody) kayıtları, malware analiz simülasyonu ve PDF/Excel/HTML rapor üretimini tek bir platform üzerinde sunar.
+
+### Öne Çıkan Özellikler
+
+- **JWT tabanlı kimlik doğrulama** — Access token + tek kullanımlık Refresh token rotasyonu
+- **Rol ve izin bazlı yetkilendirme** — Admin / Analyst / Viewer rolleri, 8 ayrı izin politikası
+- **ICAPAIR iş akışı** — Identify → Collect → Acquire → Preserve → Analyze → Interpret → Report
+- **Hash bütünlük doğrulaması** — Delil dosyası yükleyerek SHA-256 karşılaştırması
+- **Malware analiz simülasyonu** — Shannon entropisi, risk skoru, IoC tespiti
+- **Çoklu format rapor** — PDF (QuestPDF), Excel (ClosedXML), HTML
+- **Gerçek zamanlı dashboard** — Chart.js ile vaka durumu ve risk analizi grafikleri
+- **Swagger UI** — JWT desteğiyle tüm endpoint'ler test edilebilir
+
+---
+
+## Hızlı Giriş
+
+Uygulama çalıştıktan sonra aşağıdaki hesaplardan biriyle giriş yapabilirsiniz:
+
+| Rol | Kullanıcı Adı | Parola | Yetki Özeti |
+|---|---|---|---|
+| **Admin** | `admin` | `Admin123!` | Tüm yetkiler — kullanıcı yönetimi dahil |
+| **Analyst** | `analyst` | `Analyst123!` | Okuma + yazma, rapor üretme (silme hariç) |
+| **Viewer** | `viewer` | `Viewer123!` | Yalnızca okuma |
 
 ---
 
